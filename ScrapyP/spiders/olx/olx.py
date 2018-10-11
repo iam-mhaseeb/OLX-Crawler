@@ -11,16 +11,16 @@ from scrapy.loader.processors import Join, MapCompose, TakeFirst, Identity
 class OlxSpider(CrawlSpider):
     name = 'olx'
     allowed_domains = ['olx.com']
-    start_urls = ['http://www.olx.com.pk/']
+    start_urls = ['https://www.olx.com.pk/']
     custom_settings = {
-        'DOWNLOAD_DELAY' = '3',
-        'USER_AGENT' = 'Mozilla/5.0 (Windows NT 6.2; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/27.0.1453.93 Safari/537.36'
+        'DOWNLOAD_DELAY': '3',
+        'USER_AGENT': 'Mozilla/5.0 (Windows NT 6.2; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/27.0.1453.93 Safari/537.36'
     }
     rules = (
+            Rule(LinkExtractor(restrict_css='.selectcatbox'),
+                 callback='parse_listing'),
             Rule(LinkExtractor(restrict_css='.olxpk__categories--menu'),),
-            Rule(LinkExtractor(
-                restrict_css='.selectcatbox'), callback=self.parse_listing),
-            )
+        )
 
     def parse_listing(self, response):
 
