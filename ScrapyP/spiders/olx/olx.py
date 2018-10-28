@@ -1,26 +1,35 @@
 # -*- coding: utf-8 -*-
+import re
 import scrapy
 from scrapy import Request
 from scrapy import Item
-from scrapy.loader import ItemLoader
-from scrapy.spiders import CrawlSpider, Rule
-from scrapy.linkextractors import LinkExtractor
-from scrapy.loader.processors import Join, MapCompose, TakeFirst, Identity
 
 
-class OlxSpider(CrawlSpider):
+class OlxSpider(scrapy.Spider):
     name = 'olx'
-    allowed_domains = ['olx.com']
-    start_urls = ['https://www.olx.com.pk/']
+    allowed_domains = ['olx.com.pk']
+    start_urls = ['https://www.olx.com.pk/property-for-sale/categories/',
+                  'https://www.olx.com.pk/property-for-rent/categories/',
+                  'https://www.olx.com.pk/vehicles/categories/',
+                  'https://www.olx.com.pk/bikes/categories/',
+                  'https://www.olx.com.pk/electronics-home-appliances/categories/',
+                  'https://www.olx.com.pk/furniture-home-decor/categories/',
+                  'https://www.olx.com.pk/business-industrial-agriculture/categories/',
+                  'https://www.olx.com.pk/services/categories/',
+                  'https://www.olx.com.pk/mobiles-tablets/categories/',
+                  'https://www.olx.com.pk/animals/categories/',
+                  'https://www.olx.com.pk/books-sports-hobbies/categories/',
+                  'https://www.olx.com.pk/fashion-beauty/categories/',
+                  'https://www.olx.com.pk/kids-baby-products/categories/']
     custom_settings = {
-        'DOWNLOAD_DELAY': '3',
+        'DOWNLOAD_DELAY': 7,
+        'ROBOTSTXT_OBEY': False,
         'USER_AGENT': 'Mozilla/5.0 (Windows NT 6.2; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/27.0.1453.93 Safari/537.36'
     }
-    rules = (
-            Rule(LinkExtractor(restrict_css='.selectcatbox'),
-                 callback='parse_listing'),
-            Rule(LinkExtractor(restrict_css='.olxpk__categories--menu'),),
-        )
+
+    def parse(self, response):
+        for url in self.get_cats(response):
+            yield Request(url=url, callback=self.parse_listing)
 
     def parse_listing(self, response):
 
@@ -29,15 +38,19 @@ class OlxSpider(CrawlSpider):
 
         for url in self.get_items_urls(response):
             yield Request(url=url, callback=self.parse_item,
-                          meta={'cat: {}'.format(self.get_category(response))})
+                          meta={'cat': self.get_category(response)})
 
     def parse_item(self, response):
-        item = DateItemLoader(DataItem, response)
-        item.add_css('phone_no', '.fnormal::text')
-        item.add_css('name', '.userdetails span::text')
-        item.add_css('location', '.show-map-link::text')
-        item.add_value('category', response.meta['cat'])
-        return item.load_item()
+        l = DataItem()
+        cleaned = self._clean_in(response.css('.show-map-link::text').extract())
+        l['phone_no'] = '0{}'.format(response.css('.fnormal::text').extract_first())
+        l['name'] = response.css('.userdetails span::text').extract_first()
+        l['location'] = ' '.join(cleaned)
+        l['category'] = response.meta['cat']
+        yield l
+
+    def get_cats(self, response):
+        return response.css('.link-relatedcategory::attr(href)').extract()
 
     def get_items_urls(self, response):
         return response.css('.lpv-item-link::attr(href)').extract()
@@ -48,6 +61,10 @@ class OlxSpider(CrawlSpider):
     def get_all_pages(self, response):
         return response.css('.pager span a::attr(href)').extract()
 
+    def _clean_in(self, values):
+        values = [re.sub('\W+', ' ', x).strip() for x in values if x]
+        return [x for x in values if x]
+
 
 class DataItem(Item):
     id = scrapy.Field()
@@ -55,14 +72,3 @@ class DataItem(Item):
     phone_no = scrapy.Field()
     category = scrapy.Field()
     location = scrapy.Field()
-
-
-def _clean_in(self, values):
-    values = [re.sub('\s+', ' ', x).strip() for x in values if x]
-    return [x for x in values if x]
-
-
-class DateItemLoader(ItemLoader):
-    default_item_class = DataItem
-    default_input_processor = _clean_in
-    default_output_processor = TakeFirst()
