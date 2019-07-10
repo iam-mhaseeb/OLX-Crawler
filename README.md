@@ -16,7 +16,9 @@ OLX crawler depends on:
 
 ## Usage
 
-`scrapy runspider olx.py -t json -o data.json`
+```
+scrapy runspider olx.py -t json -o data.json
+```
 
 ## Contributing
 
